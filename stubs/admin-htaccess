@@ -1,0 +1,16 @@
+DirectoryIndex index.php
+
+AddDefaultCharset utf-8
+
+RewriteEngine on
+
+# Static assets bypass the router
+RewriteCond %{REQUEST_URI} \.(jpg|jpeg|gif|png|css|js|zip|doc|pdf|txt|ico|svg|woff|woff2|ttf|eot|map)$ [NC]
+RewriteRule .* - [L]
+
+# ckfinder and ckeditor own routing
+RewriteCond %{REQUEST_URI} (ckfinder|ckeditor)/ [NC]
+RewriteRule .* - [L]
+
+# Everything *.php → index.php?inc=<basename>
+RewriteRule ^(.*)\.php$ index.php?inc=$1 [NC,QSA,L]

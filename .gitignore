@@ -1,0 +1,39 @@
+# Local config with real credentials — never commit
+# (leading slash = only the root-level file, not stubs/config.php)
+/config.php
+/config.local.php
+
+# User uploads / generated content
+userfiles/
+files/
+content/
+images/cache/
+
+# Plugin caches
+plugins/ckfinder/userfiles/
+plugins/ckeditor/cache/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs / crash dumps
+*.log
+hs_err_pid*.log
+
+# Composer
+/vendor/
+composer.lock
+
+# PHP-CS-Fixer local cache / downloaded phar
+/.php-cs-fixer.cache
+/php-cs-fixer.phar
+
+# Env
+.env
+.env.*
+!.env.example

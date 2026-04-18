@@ -1,0 +1,33 @@
+<div style="padding-left: 45px;" class="greenZag">Admins Log</div><br>
+<form style="padding-left: 45px;" method="get">
+Filter: login 
+<input name="login" type="text" value="{login}">
+Action
+<select name="action">
+  <option value="0" {sel0}>Login</option>
+  <option value="-1" {sel-1}>Exit</option>
+  <option value="1" {sel1}>Add</option>
+  <option value="2" {sel2}>Edit</option>
+  <option value="3" {sel3}>Delete</option>
+</select> 
+<input type="submit" name="sub" id="sub" value="OK">
+</form>
+<table width="95%" border="1" align="center" cellpadding="1" cellspacing="1">
+  <tr>
+    <td><strong>Who</strong></td>
+    <td><strong>FromIP</strong></td>
+    <td><strong>When</strong></td>
+    <td><strong>Where</strong></td>
+    <td><strong>Action</strong></td>
+    <td><strong>record ID</strong></td>
+  </tr>
+  {ccl}<tr>
+    <td>{who}</td>
+    <td>{from}</td>
+    <td>{when}</td>
+    <td>{where}</td>
+    <td>{action}</td>
+    <td>{recID}</td>
+  </tr>
+  {/ccl}
+</table>

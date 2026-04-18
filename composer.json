@@ -1,0 +1,41 @@
+{
+    "name": "bunke/dataforce-cms",
+    "description": "Legacy table-driven PHP admin panel / CMS (2004–2016). Preserved as a pet-project.",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "Olexander Bunke",
+            "email": "als.bunke@gmail.com"
+        }
+    ],
+    "require": {
+        "php": ">=5.6"
+    },
+    "bin": [
+        "bin/dataforce-install"
+    ],
+    "autoload": {
+        "classmap": [
+            "src/models/",
+            "src/inc/"
+        ],
+        "files": [
+            "src/dotenv.php"
+        ]
+    },
+    "support": {
+        "source": "https://github.com/bunke/dataforce-cms",
+        "issues": "https://github.com/bunke/dataforce-cms/issues"
+    },
+    "archive": {
+        "exclude": [
+            "/userfiles",
+            "/files",
+            "/config.php",
+            "/.env",
+            "/.idea",
+            "/hs_err_pid*.log"
+        ]
+    }
+}

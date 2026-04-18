@@ -1,0 +1,287 @@
+#!/usr/bin/env php
+<?php
+/**
+ * DataForce CMS — host site scaffolder.
+ *
+ * Usage:
+ *   vendor/bin/dataforce-install [options]
+ *
+ * Options:
+ *   --public=DIR        web root directory (default: public)
+ *   --config=DIR        config directory    (default: config)
+ *   --models=DIR        project-specific models (default: cms-models)
+ *   --files=DIR         uploads directory   (default: <public>/files)
+ *   --mount=URL         URL prefix for admin (default: /admin)
+ *   --project=NAME      project name        (default: inferred from composer.json)
+ *   --force             overwrite existing files
+ *   --skip-assets       don't copy css/js/img/fonts/plugins
+ *   --skip-example-model   don't scaffold the example model
+ *   -h, --help          show this help
+ */
+
+// Argv parser
+$opts = [
+    'public' => 'public',
+    'config' => 'config',
+    'models' => 'cms-models',
+    'files'  => null,
+    'mount'  => '/admin',
+    'project' => null,
+    'force'  => false,
+    'skip-assets' => false,
+    'skip-example-model' => false,
+];
+
+foreach (array_slice($argv, 1) as $arg) {
+    if ($arg === '-h' || $arg === '--help') {
+        echo file_get_contents(__FILE__, false, null, 0, 1024);
+        exit(0);
+    }
+    if ($arg === '--force')              { $opts['force'] = true; continue; }
+    if ($arg === '--skip-assets')        { $opts['skip-assets'] = true; continue; }
+    if ($arg === '--skip-example-model') { $opts['skip-example-model'] = true; continue; }
+    if (preg_match('/^--([a-z-]+)=(.+)$/', $arg, $m) && array_key_exists($m[1], $opts)) {
+        $opts[$m[1]] = $m[2];
+        continue;
+    }
+    fwrite(STDERR, "Unknown argument: $arg\n");
+    exit(2);
+}
+
+// Locate CMS root and host project root
+$cmsRoot = realpath(__DIR__ . '/..');
+$projectRoot = findProjectRoot($cmsRoot);
+if ($projectRoot === null) {
+    fwrite(STDERR, "Error: cannot locate host composer.json (walked up from $cmsRoot)\n");
+    exit(1);
+}
+
+// Resolve paths
+$publicDir = $projectRoot . '/' . trim($opts['public'], '/');
+$configDir = $projectRoot . '/' . trim($opts['config'], '/');
+$modelsDir = $projectRoot . '/' . trim($opts['models'], '/');
+$filesDir  = $opts['files'] !== null
+    ? $projectRoot . '/' . trim($opts['files'], '/')
+    : $publicDir . '/files';
+
+$mount = '/' . trim($opts['mount'], '/');
+$adminDir = $publicDir . rtrim($mount, '/');
+
+$projectName = $opts['project'] ?? inferProjectName($projectRoot);
+
+echo "DataForce CMS installer\n";
+echo "-----------------------\n";
+echo "  CMS root     : $cmsRoot\n";
+echo "  project root : $projectRoot\n";
+echo "  public       : $publicDir\n";
+echo "  config       : $configDir\n";
+echo "  models       : $modelsDir\n";
+echo "  files        : $filesDir\n";
+echo "  mount URL    : $mount\n";
+echo "  admin dir    : $adminDir\n";
+echo "  project      : $projectName\n\n";
+
+mkdirp($publicDir);
+mkdirp($configDir);
+mkdirp($modelsDir);
+mkdirp($adminDir);
+mkdirp($filesDir);
+
+$stubs = $cmsRoot . '/stubs';
+
+// 1) config/dataforce.php
+// fs_root points at the directory that CONTAINS the files/images/userfiles
+// subfolders. If files dir is public/files, fs_root is project-root/public/.
+$fsRootDir = dirname($filesDir);
+$fsRootRel = trim(relativePath($projectRoot, $fsRootDir), '/');
+// Subpath as "/" (project root) or "/public/" etc. — always includes
+// leading and trailing slashes, so the stub can concatenate directly.
+$fsRootSubpath = $fsRootRel === '' ? '/' : '/' . $fsRootRel . '/';
+
+$configFile = $configDir . '/dataforce.php';
+writeStub(
+    $stubs . '/config.php',
+    $configFile,
+    [
+        '{{PROJECT_NAME}}'       => addslashes($projectName),
+        '{{FILES_REL}}'          => $fsRootRel,          // kept for backwards-compat
+        '{{FS_ROOT_SUBPATH}}'    => $fsRootSubpath,
+        '{{MODELS_REL}}'         => trim(relativePath($projectRoot, $modelsDir), '/'),
+    ],
+    $opts['force']
+);
+
+// 2) <project>/.env.example (real .env is user-managed)
+$envExample = $projectRoot . '/.env.example';
+writeStub($stubs . '/env.example', $envExample, [], $opts['force']);
+
+$envFile = $projectRoot . '/.env';
+if (!is_file($envFile)) {
+    copy($envExample, $envFile);
+    echo "  write  $envFile (copied from .env.example — fill in credentials)\n";
+}
+
+// 3) <public>/<mount>/index.php
+$indexFile = $adminDir . '/index.php';
+writeStub(
+    $stubs . '/admin-index.php',
+    $indexFile,
+    [
+        '{{VENDOR_REL}}'    => relativePath($adminDir, $projectRoot . '/vendor'),
+        '{{ENV_REL}}'       => relativePath($adminDir, $envFile),
+        '{{CONFIG_REL}}'    => relativePath($adminDir, $configFile),
+        '{{BOOTSTRAP_REL}}' => relativePath($adminDir, $cmsRoot . '/bootstrap.php'),
+    ],
+    $opts['force']
+);
+
+// 4) <public>/<mount>/.htaccess
+writeStub($stubs . '/admin-htaccess', $adminDir . '/.htaccess', [], $opts['force']);
+
+// 4b) Example model — only if models dir is empty (idempotent).
+if (!$opts['skip-example-model']) {
+    $existing = array_filter(
+        is_dir($modelsDir) ? scandir($modelsDir) : [],
+        function ($f) { return preg_match('/\.php$/i', $f); }
+    );
+    if (empty($existing) || $opts['force']) {
+        writeStub($stubs . '/model-example.php', $modelsDir . '/AdminExample.php', [], $opts['force']);
+    } else {
+        echo "  keep   $modelsDir/ (" . count($existing) . " file(s) already present — skipping example)\n";
+    }
+}
+
+// 5) Static assets
+if (!$opts['skip-assets']) {
+    foreach (['css', 'js', 'img', 'images', 'fonts', 'plugins', 'html'] as $dir) {
+        $src = $cmsRoot . '/' . $dir;
+        if (!is_dir($src)) continue;
+        $dst = $adminDir . '/' . $dir;
+        copyTree($src, $dst);
+        echo "  assets  $dir/ → " . prettyPath($dst, $projectRoot) . "\n";
+    }
+}
+
+// 6) .gitignore hints
+$gitignore = $projectRoot . '/.gitignore';
+$snippet = file_get_contents($stubs . '/gitignore-snippet');
+if (!is_file($gitignore) || strpos(file_get_contents($gitignore), 'DataForce CMS') === false) {
+    file_put_contents($gitignore, (is_file($gitignore) ? "\n" : '') . $snippet, FILE_APPEND);
+    echo "  gitignore appended DataForce entries\n";
+}
+
+echo "\nDone. Next steps:\n";
+echo "  1. Edit $envFile — fill DF_DB_* credentials\n";
+echo "  2. Review $configFile — table names, project name\n";
+echo "  3. On first run visit {$mount}/login.php?crt=1 to create base tables\n";
+echo "  4. Default login: admin / admin  (change immediately!)\n";
+echo "  5. See $modelsDir/AdminExample.php for the model template.\n";
+echo "     Naming: AdminFoos.php -> class admin_foos -> table 'foos'.\n";
+
+// --- helpers ---
+
+function findProjectRoot(string $from): ?string {
+    $dir = $from;
+    while ($dir && $dir !== dirname($dir)) {
+        if (is_file($dir . '/composer.json') && is_dir($dir . '/vendor')) {
+            // Skip the CMS's own composer.json
+            $cj = json_decode(file_get_contents($dir . '/composer.json'), true);
+            if (($cj['name'] ?? '') !== 'bunke/dataforce-cms') return $dir;
+        }
+        $dir = dirname($dir);
+    }
+    return null;
+}
+
+function inferProjectName(string $projectRoot): string {
+    $cj = $projectRoot . '/composer.json';
+    if (is_file($cj)) {
+        $data = json_decode(file_get_contents($cj), true);
+        if (!empty($data['name'])) {
+            $parts = explode('/', $data['name']);
+            return ucfirst(end($parts));
+        }
+    }
+    return basename($projectRoot);
+}
+
+function mkdirp(string $dir): void {
+    if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+        fwrite(STDERR, "Cannot create directory: $dir\n");
+        exit(1);
+    }
+}
+
+function writeStub(string $src, string $dst, array $replacements, bool $force): void {
+    if (is_file($dst) && !$force) {
+        echo "  keep   " . $dst . "  (exists, pass --force to overwrite)\n";
+        return;
+    }
+    $content = file_get_contents($src);
+    foreach ($replacements as $k => $v) {
+        $content = str_replace($k, $v, $content);
+    }
+    mkdirp(dirname($dst));
+    file_put_contents($dst, $content);
+    echo "  write  $dst\n";
+}
+
+function copyTree(string $src, string $dst): void {
+    mkdirp($dst);
+    $it = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($src, RecursiveDirectoryIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+    foreach ($it as $item) {
+        $target = $dst . '/' . $it->getSubPathName();
+        if ($item->isDir()) {
+            mkdirp($target);
+        } else {
+            copy($item->getPathname(), $target);
+        }
+    }
+}
+
+function relativePath(string $from, string $to): string {
+    $from = normalizePath($from);
+    $to   = normalizePath($to);
+    $fromParts = explode('/', rtrim($from, '/'));
+    $toParts   = explode('/', rtrim($to, '/'));
+    while ($fromParts && $toParts && $fromParts[0] === $toParts[0]) {
+        array_shift($fromParts);
+        array_shift($toParts);
+    }
+    return str_repeat('../', count($fromParts)) . implode('/', $toParts);
+}
+
+/**
+ * Collapse '.' segments and resolve '..' without touching the filesystem.
+ * Works for both absolute and relative paths, preserves a leading '/'.
+ * Without this, `--public=.` leaks a stray segment into relativePath()
+ * and the generated public/admin/index.php ends up with '../../vendor'
+ * instead of '../vendor'.
+ */
+function normalizePath(string $path): string {
+    $path = str_replace('\\', '/', $path);
+    $absolute = ($path !== '' && $path[0] === '/');
+    $parts = [];
+    foreach (explode('/', $path) as $segment) {
+        if ($segment === '' || $segment === '.') continue;
+        if ($segment === '..') {
+            if ($parts && end($parts) !== '..') {
+                array_pop($parts);
+            } elseif (!$absolute) {
+                $parts[] = '..';
+            }
+            continue;
+        }
+        $parts[] = $segment;
+    }
+    return ($absolute ? '/' : '') . implode('/', $parts);
+}
+
+function prettyPath(string $path, string $root): string {
+    $path = str_replace('\\', '/', $path);
+    $root = str_replace('\\', '/', $root);
+    return strpos($path, $root) === 0 ? ltrim(substr($path, strlen($root)), '/') : $path;
+}

@@ -1,0 +1,6 @@
+# DataForce CMS — local files that must never be committed
+/.env
+/config/dataforce.php
+/public/admin/assets/
+/public/files/
+/public/userfiles/
