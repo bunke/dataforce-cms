@@ -26,10 +26,27 @@ if ($file['size'] > $maxBytes) {
 	ckRespond($funcNum, null, 'File too large (max 10 MB)');
 }
 
+// MIME detection with fallbacks — Ukrainian shared hosts often ship without
+// php-fileinfo, so finfo can be missing entirely.
 $mime = '';
 if (class_exists('finfo')) {
 	$finfo = new finfo(FILEINFO_MIME_TYPE);
 	$mime = $finfo->file($file['tmp_name']) ?: '';
+}
+if ($mime === '' && function_exists('mime_content_type')) {
+	$mime = @mime_content_type($file['tmp_name']) ?: '';
+}
+if ($mime === '' && function_exists('exif_imagetype')) {
+	$exifMap = [
+		IMAGETYPE_JPEG => 'image/jpeg',
+		IMAGETYPE_PNG  => 'image/png',
+		IMAGETYPE_GIF  => 'image/gif',
+		IMAGETYPE_WEBP => 'image/webp',
+	];
+	$imgType = @exif_imagetype($file['tmp_name']);
+	if (isset($exifMap[$imgType])) {
+		$mime = $exifMap[$imgType];
+	}
 }
 
 $imageMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
