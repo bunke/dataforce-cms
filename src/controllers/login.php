@@ -203,8 +203,9 @@ elseif (!empty($_GET['crt'])) {
 	if ($res === false) {
 		var_dump(pdoError());
 	} else {
+		// crypt('admin', 'bp') = 'bpE5qLkmygr6Y' — verified against PHP 7.4-8.3 DES impl.
 		$q = "INSERT INTO `$TABLE_ADMINS` (`id`, `name`, `email`, `passwd`, `group_id`, `creation_time`) VALUES
-(1, 'admin', 'als.bunke@gmail.com', 'bpMQSfH1Qgdbw', '1', '" . date('U') . "')";
+(1, 'admin', 'als.bunke@gmail.com', 'bpE5qLkmygr6Y', '1', '" . date('U') . "')";
 		$res = pdoExec($q);
 		if ($res === false) {
 			var_dump(pdoError());

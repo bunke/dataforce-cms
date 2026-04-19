@@ -316,7 +316,7 @@ if (isset($tablei) && $tablei != '') {
 				//echo 'f='.$folder;
 
 				if (is_file("$pref$FOLDER_IMAGES/$folder$img_id.1.s.jpg")) {
-					$image = "<img src=\"$pref$FOLDER_IMAGES_FRONTEND/$folder$img_id.1.s.jpg\" width=\"25\" border=\"0\">";
+					$image = "<img src=\"$pref_url$FOLDER_IMAGES_FRONTEND/$folder$img_id.1.s.jpg\" width=\"25\" border=\"0\">";
 				}
 			}
 

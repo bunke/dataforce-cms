@@ -10,6 +10,17 @@ if (!isset($dfConfig) || !is_array($dfConfig)) {
     throw new RuntimeException('DataForce: $dfConfig must be defined before including bootstrap.php');
 }
 
+// Force UTF-8 everywhere. Ukrainian shared hosts often default Apache/nginx
+// to Content-Type: text/html; charset=windows-1251 which overrides <meta>.
+if (!headers_sent()) {
+    header('Content-Type: text/html; charset=utf-8');
+}
+ini_set('default_charset', 'utf-8');
+if (function_exists('mb_internal_encoding')) {
+    mb_internal_encoding('UTF-8');
+    mb_http_output('UTF-8');
+}
+
 define('DATAFORCE_ROOT', __DIR__);
 define('DATAFORCE_SRC',  __DIR__ . '/src');
 
@@ -70,7 +81,18 @@ if (!empty($dfConfig['error_display'])) {
     ini_set('display_errors', '0');
 }
 
-date_default_timezone_set($dfConfig['timezone'] ?? 'UTC');
+// Timezone — some hosts ship an outdated tzdata that rejects 'Europe/Kyiv'
+// (renamed from 'Europe/Kiev' in tzdata 2022b). Fall back gracefully.
+$__dfTz = $dfConfig['timezone'] ?? 'UTC';
+if (!in_array($__dfTz, timezone_identifiers_list(), true)) {
+    if ($__dfTz === 'Europe/Kyiv' && in_array('Europe/Kiev', timezone_identifiers_list(), true)) {
+        $__dfTz = 'Europe/Kiev';
+    } else {
+        $__dfTz = 'UTC';
+    }
+}
+date_default_timezone_set($__dfTz);
+unset($__dfTz);
 
 // Legacy code uses relative requires (require_once "inc/Connect.php"),
 // scandir("models/") etc. — enter the src/ dir so those resolve.

@@ -1017,7 +1017,7 @@ if (method_exists(${"admin_$tablei"}, 'printFiles') || $formatpos != null) {
         if (!empty($row[$img_field])) {
         	$folder = GetImageFolder($tablei,$row[$img_field]);
         	if (@filesize("$pref$FOLDER_IMAGES/$folder" . $row[$img_field] . ".1.b.$img_type") > 0) {
-        		echo "<img src=\"$pref$FOLDER_IMAGES/$folder" . $row[$img_field] . ".1.b.$img_type\" style=\"display:block;
+        		echo "<img src=\"$pref_url$FOLDER_IMAGES/$folder" . $row[$img_field] . ".1.b.$img_type\" style=\"display:block;
 border-radius:15px;
 position:relative;
 max-height:200px;\" alt=\"" . $row[$echo_item_name] . '" title="' . $row[$echo_item_name] . '">';
