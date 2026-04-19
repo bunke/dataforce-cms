@@ -48,6 +48,12 @@ if ($mime === '' && function_exists('exif_imagetype')) {
 		$mime = $exifMap[$imgType];
 	}
 }
+if ($mime === '') {
+	$info = @getimagesize($file['tmp_name']);
+	if (!empty($info['mime'])) {
+		$mime = $info['mime'];
+	}
+}
 
 $imageMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 $fileMimes = ['application/pdf', 'application/zip', 'application/msword',
