@@ -57,6 +57,18 @@ foreach ($__dfModelDirs as $__dir) {
 unset($__dfModelDirs, $__dir, $__file);
 
 
+/*
+ * Machine endpoints (JSON API + MCP server) — token-authenticated, no admin
+ * session. Must bypass the session gate below: auth is a Bearer token checked
+ * inside the controller (see inc/Api.php). Models are already loaded, $pdo is
+ * already connected. Opt-in per model via `public $API = 1;`.
+ */
+if (isset($_GET['inc']) && ($_GET['inc'] === 'api' || $_GET['inc'] === 'mcp')) {
+	require DATAFORCE_SRC . '/controllers/' . $_GET['inc'] . '.php';
+	exit;
+}
+
+
 if (isset($_GET['inc']) && $_GET['inc'] != '' && $_GET['inc'] != 'login') {
 	$sttime = getTime();
 

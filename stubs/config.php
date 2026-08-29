@@ -64,6 +64,19 @@ return [
 
     'error_display' => false, // true only in dev
 
+    /*
+     | ------------------------------------------------------------------
+     |  Machine API + MCP server
+     | ------------------------------------------------------------------
+     |
+     |  Bearer token for /admin/api.php (JSON API) and /admin/mcp.php
+     |  (MCP server for AI agents: Claude Code, Codex, n8n...).
+     |  Empty or shorter than 16 chars = both endpoints disabled.
+     |  Generate:  php -r "echo bin2hex(random_bytes(32));"
+     |  Models opt in individually with `public $API = 1;` ('ro' = read-only).
+     */
+    'api_token' => getenv('DF_API_TOKEN') ?: '',
+
     'tables' => [
         'docs_rubs'         => 'tef_drubs',
         'docs'              => 'tef_docs',

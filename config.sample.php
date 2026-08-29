@@ -17,6 +17,11 @@ $ALANG        = 'ru';
 $PROJECT_NAME = 'DataForce';
 $LANGS        = ['ru' => 'RU', 'ua' => 'Укр', 'en' => 'EN'];
 
+// Machine API + MCP server (controllers/api.php, controllers/mcp.php).
+// Empty or < 16 chars = endpoints disabled. Generate with:
+//   php -r "echo bin2hex(random_bytes(32));"
+$dfConfig['api_token'] = getenv('DF_API_TOKEN') ?: '';
+
 // Upload folder names — in standalone mode they're siblings of admin/
 $FOLDER_FILES     = 'files';
 $FOLDER_IMAGES    = 'images';

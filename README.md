@@ -318,6 +318,160 @@ SELECT `id`, 1 FROM `admins_menu`;
   already silenced in the controllers in `main`. If a new one shows
   up, wrap the faulting expression with `?? ''` and send a PR.
 
+## Machine API & MCP server
+
+DataForce exposes an optional, token-authenticated machine interface with two
+transports over the same core (`src/inc/Api.php`):
+
+- **JSON API** — `/admin/api.php`, a conventional REST-ish endpoint
+- **MCP server** — `/admin/mcp.php`, a [Model Context Protocol](https://modelcontextprotocol.io)
+  Streamable-HTTP endpoint, so AI agents (Claude Code, Codex, n8n, custom
+  agents) can manage CMS records as first-class tools
+
+Both are generated from the same `Field[]` definitions your models already
+have — there is no second schema to maintain. All queries run through PDO
+prepared statements (the legacy string-concatenation write paths are not used).
+
+### Enabling
+
+1. **Set a token** in the host config (`config/dataforce.php` in vendor mode,
+   `config.php` standalone):
+
+   ```php
+   'api_token' => getenv('DF_API_TOKEN') ?: '',
+   ```
+
+   and put a long random value in `.env`:
+
+   ```bash
+   php -r "echo bin2hex(random_bytes(32));"   # generate
+   # .env:  DF_API_TOKEN=<the 64-char hex>
+   ```
+
+   Empty or shorter than 16 chars ⇒ both endpoints answer `503` (disabled).
+   Auth is `Authorization: Bearer <token>`, compared with `hash_equals()`.
+
+2. **Opt models in** — nothing is exposed by default:
+
+   ```php
+   class admin_products extends AdminTable
+   {
+       public $API = 1;     // full CRUD ('ro' = read-only)
+       ...
+   }
+   ```
+
+### JSON API
+
+```
+GET    /admin/api.php                                  discovery + all schemas
+GET    /admin/api.php?resource=products                list (page, limit, sort,
+                                                       order, any column=value filter)
+GET    /admin/api.php?resource=products&id=42          single record
+GET    /admin/api.php?resource=products&action=schema  field metadata
+POST   /admin/api.php?resource=products        {json}  create        → 201
+PATCH  /admin/api.php?resource=products&id=42  {json}  update
+DELETE /admin/api.php?resource=products&id=42          delete (no_del honored)
+POST   /admin/api.php?resource=products&action=<name> {json}  domain action
+```
+
+Envelope: `{"ok":true,"data":...,"meta":{...}}` on success,
+`{"ok":false,"error":{"code":...,"message":...}}` on failure. Example:
+
+```bash
+curl -s -H "Authorization: Bearer $DF_API_TOKEN" \
+  'https://example.com/admin/api.php?resource=products&is_active=1&limit=10'
+
+curl -s -X POST -H "Authorization: Bearer $DF_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"New product","is_active":1}' \
+  'https://example.com/admin/api.php?resource=products'
+```
+
+Writes accept only columns that exist in the model's `$fld` and are writable
+(`C_SPEC`/subquery fields are read-only; `C_HR` dividers and, for
+`$MULTI_LANG` models, per-language `_info` columns are excluded — multi-lang
+via API is a known v1 limitation). `creation_time`/`crtdate`/`sort` are
+auto-filled on insert, `update_time` on update. Deletes respect a `no_del`
+column and call `beforeDelete`/`onDelete` hooks (output-buffered).
+
+### MCP server
+
+`POST /admin/mcp.php` speaks JSON-RPC 2.0 per MCP rev `2025-06-18`
+(stateless subset: `initialize`, `notifications/*` → 202, `ping`,
+`tools/list`, `tools/call`; no SSE stream, no sessions — fits shared
+hosting). Every opted-in model becomes a tool family:
+
+```
+<resource>_schema | _list | _get | _create | _update | _delete
+<resource>_<action>          ← one per apiAction_* method
+```
+
+Client config (Claude Code / Codex `.mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "mysite-cms": {
+      "type": "http",
+      "url": "https://example.com/admin/mcp.php",
+      "headers": { "Authorization": "Bearer <DF_API_TOKEN>" }
+    }
+  }
+}
+```
+
+Smoke test:
+
+```bash
+curl -s -X POST -H "Authorization: Bearer $DF_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' \
+  https://example.com/admin/mcp.php
+```
+
+### Domain actions
+
+Models can expose business operations beyond CRUD:
+
+```php
+class admin_users extends AdminTable
+{
+    public $API = 1;
+    public $API_ACTIONS = [
+        'menu_by_phone' => [
+            'description' => 'Resolve the personal menu for a client by phone + birth year.',
+            'input'    => [
+                'phone' => ['type' => 'string',  'description' => 'Client phone'],
+                'year'  => ['type' => 'integer', 'description' => 'Birth year'],
+            ],
+            'required' => ['phone', 'year'],
+        ],
+    ];
+
+    public function apiAction_menu_by_phone(array $params)
+    {
+        // prepared statements via $GLOBALS['pdo']; return a JSON-able array;
+        // throw DataForceApiError('...', 4xx) for clean errors
+    }
+}
+```
+
+`apiAction_menu_by_phone` is callable as
+`POST api.php?resource=users&action=menu_by_phone` and as the MCP tool
+`users_menu_by_phone`. `$API_ACTIONS` metadata feeds the discovery document
+and the MCP `inputSchema`; without it the action still works but is
+documented generically.
+
+### Security notes
+
+- Off by default twice over: no token ⇒ endpoints dead; no `$API` flag ⇒
+  model invisible. A CMS update can't silently expose another site's data.
+- The token is a bearer credential to your admin data — treat it like the
+  admin password. HTTPS only; keep it in `.env`, never in git.
+- The API bypasses the admin-session gate but **not** the audit trail of your
+  reverse proxy — log `POST /admin/api.php|mcp.php` if you need forensics.
+
 ## Standalone install (legacy layout)
 
 If you prefer the original "drop into `/admin/`" layout:

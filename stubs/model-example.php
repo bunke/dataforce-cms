@@ -31,6 +31,20 @@ class admin_example extends AdminTable
 
     public $RUBS_NO_UNDER = 1;         // flat list (no parent/child tree)
 
+    // Machine API + MCP exposure (off by default). Set to 1 for full CRUD
+    // via /admin/api.php and as MCP tools via /admin/mcp.php, or 'ro' for
+    // read-only. Requires 'api_token' in config. See README → Machine API.
+    // public $API = 1;
+
+    // Optional metadata for apiAction_* methods (docs + MCP inputSchema):
+    // public $API_ACTIONS = [
+    //     'publish' => [
+    //         'description' => 'Publish an example by id.',
+    //         'input'    => ['id' => ['type' => 'integer', 'description' => 'Record id']],
+    //         'required' => ['id'],
+    //     ],
+    // ];
+
     public function __construct()
     {
         $this->fld = [
@@ -61,4 +75,15 @@ class admin_example extends AdminTable
 
     // Extra HTML rendered inside the edit form.
     // public function addSpFields($row, $under) { }
+
+    // --- Machine API domain action (optional) ---
+    // Exposed as POST api.php?resource=example&action=publish and as the
+    // MCP tool `example_publish`. Use $GLOBALS['pdo'] with prepared
+    // statements; return a JSON-serializable array. Throw DataForceApiError
+    // for clean HTTP/tool errors.
+    // public function apiAction_publish(array $params) {
+    //     $stmt = $GLOBALS['pdo']->prepare('UPDATE example SET is_active=1 WHERE id=?');
+    //     $stmt->execute([(int)($params['id'] ?? 0)]);
+    //     return ['published' => true, 'id' => (int)$params['id']];
+    // }
 }
