@@ -349,7 +349,11 @@ prepared statements (the legacy string-concatenation write paths are not used).
    ```
 
    Empty or shorter than 16 chars ⇒ both endpoints answer `503` (disabled).
-   Auth is `Authorization: Bearer <token>`, compared with `hash_equals()`.
+   Auth is `Authorization: Bearer <token>` (compared with `hash_equals()`).
+   If `/admin/` sits behind an HTTP Basic gate (ispmanager, `.htpasswd` —
+   recommended, see Security notice), the Authorization header is taken by
+   Basic — send the API token in **`X-Api-Key: <token>`** instead and keep
+   the Basic credentials in Authorization.
 
 2. **Opt models in** — nothing is exposed by default:
 

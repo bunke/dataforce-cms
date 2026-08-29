@@ -68,8 +68,15 @@ class DataForceApi
 	}
 
 	/**
-	 * Validate `Authorization: Bearer <token>`. Throws DataForceApiError
-	 * (503 when no token configured, 401 on mismatch).
+	 * Validate the API token. Two accepted carriers, in order:
+	 *
+	 *   1. `Authorization: Bearer <token>`
+	 *   2. `X-Api-Key: <token>` — for deployments where /admin/ sits behind
+	 *      an HTTP Basic gate (ispmanager, .htpasswd, ...) that already
+	 *      occupies the Authorization header. Send Basic creds in
+	 *      Authorization and the API token in X-Api-Key.
+	 *
+	 * Throws DataForceApiError (503 when no token configured, 401 on mismatch).
 	 */
 	public function authenticate()
 	{
@@ -86,20 +93,31 @@ class DataForceApi
 				break;
 			}
 		}
-		if ($header === '' && function_exists('apache_request_headers')) {
-			$hs = apache_request_headers();
-			foreach ($hs as $k => $v) {
-				if (strtolower($k) === 'authorization') {
+		$apiKey = !empty($_SERVER['HTTP_X_API_KEY']) ? trim($_SERVER['HTTP_X_API_KEY']) : '';
+		if (($header === '' || $apiKey === '') && function_exists('apache_request_headers')) {
+			foreach (apache_request_headers() as $k => $v) {
+				$lk = strtolower($k);
+				if ($lk === 'authorization' && $header === '') {
 					$header = $v;
-					break;
+				} elseif ($lk === 'x-api-key' && $apiKey === '') {
+					$apiKey = trim($v);
 				}
 			}
 		}
 
-		if (!preg_match('/^Bearer\s+(\S+)$/i', trim($header), $m)) {
-			throw new DataForceApiError('Missing Authorization: Bearer <token> header', 401);
+		$candidate = '';
+		if (preg_match('/^Bearer\s+(\S+)$/i', trim($header), $m)) {
+			$candidate = $m[1];
+		} elseif ($apiKey !== '') {
+			$candidate = $apiKey;
 		}
-		if (!hash_equals((string)$this->config['api_token'], $m[1])) {
+
+		if ($candidate === '') {
+			throw new DataForceApiError(
+				'Missing token: send Authorization: Bearer <token> or X-Api-Key: <token>', 401
+			);
+		}
+		if (!hash_equals((string)$this->config['api_token'], $candidate)) {
 			throw new DataForceApiError('Invalid API token', 401);
 		}
 	}
