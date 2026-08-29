@@ -425,6 +425,28 @@ Client config (Claude Code / Codex `.mcp.json`):
 }
 ```
 
+Codex CLI (`~/.codex/config.toml`) — verified against a production install
+behind an ispmanager Basic gate:
+
+```toml
+[mcp_servers.mysite-cms]
+url = "https://example.com/admin/mcp.php"
+# ungated install:            just X-Api-Key (or Authorization = "Bearer <token>")
+# behind an HTTP Basic gate:  Basic creds in Authorization, token in X-Api-Key
+http_headers = { "Authorization" = "Basic <base64 user:pass>", "X-Api-Key" = "<DF_API_TOKEN>" }
+```
+
+If the client can't speak HTTP MCP natively, bridge over stdio with
+[`mcp-remote`](https://www.npmjs.com/package/mcp-remote):
+
+```toml
+[mcp_servers.mysite-cms]
+command = "npx"
+args = ["-y", "mcp-remote", "https://example.com/admin/mcp.php",
+        "--header", "Authorization: Basic <base64 user:pass>",
+        "--header", "X-Api-Key: <DF_API_TOKEN>"]
+```
+
 Smoke test:
 
 ```bash
